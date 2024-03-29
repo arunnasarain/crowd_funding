@@ -103,9 +103,12 @@ def get_projects_by_category(category):
         db = get_db_connection()
         dbcursor = db.cursor()
         print(category)
+
+        # Get all projects under the given category
         dbcursor.execute(f"SELECT * FROM projects WHERE category = {category}")
         projects = dbcursor.fetchall()
 
+        # Initialize a empty list and append the mapped key and value of projects
         project_with_keys = list()
         for project in projects:
             project_with_keys.append({
@@ -138,14 +141,16 @@ def get_project_details(project_id):
         db = get_db_connection()
         dbcursor = db.cursor()
         dbcursor.execute(f"SELECT * FROM projects WHERE id = '{project_id}'")
-        project = dbcursor.fetchone()
+        project = dbcursor.fetchone() # Using fetchone as there cant be multiple entries with same project id
 
         if project is None:
             return None, 404
 
+        # Check for any feedbacks related to this project
         dbcursor.execute(f"SELECT * FROM feedbacks WHERE project_id = {project_id}")
         feedbacks = dbcursor.fetchall()
 
+        # Initiate an empty list and append the map of feedbacks
         feedback_with_keys = list()
         for feedback in feedbacks:
             feedback_with_keys.append({
@@ -157,6 +162,8 @@ def get_project_details(project_id):
                 'timestamp': feedback[5]
             })
 
+        # Create a map and assign values to the keys.
+        # Pass feedback_with_keys to feedbacks
         project_with_keys = {
             'id': project[0],
             'category': project[1],
@@ -187,7 +194,7 @@ def get_all_investors():
     try:
         db = get_db_connection()
         dbcursor = db.cursor()
-        dbcursor.execute("SELECT * FROM investors")
+        dbcursor.execute("SELECT * FROM investors") # Fetching all investors
         investors = dbcursor.fetchall()
 
         investors_with_keys = list()
@@ -215,14 +222,18 @@ def get_all_investors():
 
 
 def make_investment(req):
+    # req is flask request object. request.json has the request json body.
     new_investment = req.json
     try:
         db = get_db_connection()
         dbcursor = db.cursor()
 
+        # Make sure no values are empty.
+        # The values() return a tuple of all the values without the keys.
         if '' in new_investment.values():
             return ("Some fields are empty",), 400
 
+        # Check if the amount is valid
         if new_investment['amount'] <= 0:
             return ("Amount must be non-zero positive value",), 400
 
@@ -242,22 +253,27 @@ def make_investment(req):
         investments = dbcursor.fetchall()
         total_investment = 0
 
+        # Add up all the investment made on the project
         for investment in investments:
             total_investment += float(investment[0])
 
+        # Check if the investment have reached the goal 
         if total_investment >= project[5]:
             return ("The funding goal has already been reached.",), 400
 
+        # Check if the current investment will not exceed funding goal
         if total_investment + new_investment['amount'] > project[5]:
             return ("The investment amount is too high.",), 400
 
+        # Insert the data after all the checks are passed
         sql_insert = "INSERT INTO investments (amount, project_id, timestamp, investor_id) VALUES (%s, %s, %s, %s)"
         values = (new_investment['amount'], new_investment['project_id'], datetime.now().isoformat(),
                   new_investment['investor_id'])
         dbcursor.execute(sql_insert, values)
         db.commit()
-        new_investment_id = dbcursor.lastrowid
+        new_investment_id = dbcursor.lastrowid # Get the id of the last inserted row
 
+        # Update the investors table for this investor
         updated_invested_amount = float(investor[3]) + new_investment['amount']
         sql_update = "UPDATE investors SET total_invested_amount=%s WHERE investor_id=%s"
         values = (updated_invested_amount, new_investment['investor_id'])
@@ -273,7 +289,6 @@ def make_investment(req):
                     "amountInvested": float(new_investment['amount']),
                     "timestamp": datetime.now().isoformat()
                 }, 200)
-
 
     except Exception as e:
         print("Exception occurred", e)
@@ -298,6 +313,7 @@ def get_investment_details_by_project_id(project_id):
         if project is None:
             return ("Project does not exist",), 400
 
+        # Fetch all investments for the project
         dbcursor.execute("SELECT * FROM investments where project_id=%s", (project_id,))
         investments = dbcursor.fetchall()
 
@@ -428,7 +444,6 @@ def submit_feedback(project_id, req):
             "comment": feedback[1],
             "timestamp": feedback[5]
         }, 200
-
 
     except Exception as e:
         print("Exception occurred", e)
